@@ -122,3 +122,8 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+TMDB_API_KEY = "a5c12c17ee58a4c7c4e8dfa838ae28ad"
+
+LOGIN_REDIRECT_URL = '/api/'   # After login, go to your DRF API endpoints
+LOGOUT_REDIRECT_URL = '/api/'  # After logout, go here

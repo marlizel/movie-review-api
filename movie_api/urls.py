@@ -3,5 +3,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('reviews.urls')),  # 👈 connect reviews app routes
+    path('api/', include('reviews.urls')),           # your app routes
+    path('api-auth/', include('rest_framework.urls')),  # DRF login/logout
 ]
