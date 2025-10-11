@@ -3,6 +3,7 @@ import requests
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
 from .models import Review, Movie
 from .serializers import ReviewSerializer, UserSerializer
@@ -141,3 +142,20 @@ class RandomMovieView(APIView):
             "western": 37
         }
         return mapping.get(genre_name.lower())
+
+# -------------------------------
+# API Root View
+# -------------------------------
+
+class ApiRootView(APIView):
+    """
+    API root endpoint that lists all main endpoints.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, format=None):
+        return Response({
+            "users": reverse('user-list-create', request=request, format=format),
+            "reviews": reverse('review-list-create', request=request, format=format),
+            "random_movie": reverse('random-movie', request=request, format=format),
+        })

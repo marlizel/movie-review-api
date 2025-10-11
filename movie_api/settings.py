@@ -123,7 +123,22 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
+# Django REST Framework global settings
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
+}
+
+
+# API keys
 TMDB_API_KEY = "a5c12c17ee58a4c7c4e8dfa838ae28ad"
 
-LOGIN_REDIRECT_URL = '/api/'   # After login, go to your DRF API endpoints
-LOGOUT_REDIRECT_URL = '/api/'  # After logout, go here
+# Redirects after login/logout
+LOGIN_REDIRECT_URL = '/api/'
+LOGOUT_REDIRECT_URL = '/api/'

@@ -5,12 +5,12 @@ from .views import (
     ReviewListCreateView,
     ReviewDetailView,
     RandomMovieView,
-    ApiRootView,  # 👈 new
+    ApiRootView,  # 👈 include the root view
 )
 
 urlpatterns = [
     # API root landing page
-    path('', ApiRootView.as_view(), name='api-root'),  # 👈 new
+    path('', ApiRootView.as_view(), name='api-root'),  # 👈 root endpoint
 
     # User endpoints
     path('users/', UserListCreateView.as_view(), name='user-list-create'),
