@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>CineLot — Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 24px auto; }
+    button { padding: 8px 12px; margin: 6px 0; }
+    .card { border: 1px solid #ddd; padding: 12px; margin: 12px 0; border-radius: 6px; }
+    input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <h1>CineLot — Quick Demo</h1>
+  <p>Use the buttons below to test the API. For auth, use <code>/api-auth/login/</code> (DRF login).</p>
+
+  <div>
+    <label>Genre (optional):</label>
+    <input id="genre" placeholder="e.g. comedy, drama, action" />
+    <button id="randomBtn">Get Random Movie (TMDb)</button>
+  </div>
+
+  <div id="movieResult" class="card" style="display:none;"></div>
+
+  <h2>Post a Review (authenticated)</h2>
+  <p>Use the movie id returned from TMDb as the "movie" field in the POST below.</p>
+  <div class="card">
+    <label>Movie ID:</label>
+    <input id="reviewMovie" placeholder="TMDb movie id" />
+    <label>Rating (1-5):</label>
+    <input id="rating" type="number" min="1" max="5" value="5" />
+    <label>Comment:</label>
+    <textarea id="comment" rows="3"></textarea>
+    <button id="postReviewBtn">Post Review</button>
+  </div>
+
+  <h3>Messages</h3>
+  <pre id="msg"></pre>
+
+  <script>
+    const apiRoot = "/api/";
+
+    function showMsg(t){ document.getElementById('msg').textContent = t; }
+
+    document.getElementById('randomBtn').addEventListener('click', async () => {
+      const genre = document.getElementById('genre').value.trim();
+      const url = genre ? `/api/movies/random/?genre=${encodeURIComponent(genre)}` : '/api/movies/random/';
+      showMsg('Fetching...');
+      try {
+        const r = await fetch(url);
+        if(!r.ok) {
+          const e = await r.json();
+          showMsg('Error: ' + JSON.stringify(e));
+          return;
+        }
+        const data = await r.json();
+        const el = document.getElementById('movieResult');
+        el.style.display = 'block';
+        el.innerHTML = `
+          <h3>${data.title} (${data.release_date || 'N/A'})</h3>
+          <p><strong>Genres:</strong> ${data.genres ? (Array.isArray(data.genres)?data.genres.join(', '):data.genres): ''}</p>
+          <p>${data.overview || ''}</p>
+          <p><a href="${data.tmdb_url}" target="_blank">View on TMDb</a></p>
+          <p><strong>TMDb id:</strong> ${data.id}</p>
+        `;
+        showMsg('Movie fetched successfully.');
+      } catch (err) {
+        showMsg('Network error: ' + err.message);
+      }
+    });
+
+    document.getElementById('postReviewBtn').addEventListener('click', async () => {
+      const movie = document.getElementById('reviewMovie').value.trim();
+      const rating = document.getElementById('rating').value;
+      const comment = document.getElementById('comment').value;
+      if(!movie || !rating || !comment){ showMsg('Please fill all fields'); return; }
+
+      const payload = { movie: movie, rating: parseInt(rating), comment: comment };
+      showMsg('Posting review... (must be logged in via /api-auth/login/)');
+
+      try {
+        const r = await fetch('/api/reviews/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'same-origin'
+        });
+        const result = await r.json();
+        if(!r.ok) {
+          showMsg('Error: ' + JSON.stringify(result));
+          return;
+        }
+        showMsg('Review posted: ' + JSON.stringify(result));
+      } catch (err) {
+        showMsg('Network error: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>

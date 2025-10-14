@@ -5,12 +5,13 @@ from .views import (
     ReviewListCreateView,
     ReviewDetailView,
     RandomMovieView,
-    ApiRootView,  # 👈 include the root view
+    ApiRootView,
+    AppFrontendView,
 )
 
 urlpatterns = [
     # API root landing page
-    path('', ApiRootView.as_view(), name='api-root'),  # 👈 root endpoint
+    path('', ApiRootView.as_view(), name='api-root'),
 
     # User endpoints
     path('users/', UserListCreateView.as_view(), name='user-list-create'),
@@ -20,6 +21,9 @@ urlpatterns = [
     path('reviews/', ReviewListCreateView.as_view(), name='review-list-create'),
     path('reviews/<int:pk>/', ReviewDetailView.as_view(), name='review-detail'),
 
-    # Random movie endpoint
+    # Random movie endpoint (TMDb)
     path('movies/random/', RandomMovieView.as_view(), name='random-movie'),
+
+    # Tiny frontend for manual demo (optional)
+    path('app/', AppFrontendView.as_view(), name='app-frontend'),
 ]

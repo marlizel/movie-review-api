@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from .models import Review, Movie
 from .serializers import ReviewSerializer, UserSerializer
 from django.conf import settings
+from django.views.generic import TemplateView
 
 # -------------------------------
 # User Views
@@ -54,38 +55,24 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 # -------------------------------
-# Random Movie View with TMDb
+# Random Movie View with TMDb (TMDb-only now)
 # -------------------------------
 
 class RandomMovieView(APIView):
     """
-    Returns a random movie from local DB or TMDb.
+    Returns a random movie from TMDb.
     Optionally filter by genre using ?genre=<genre_name>.
     """
-    TMDB_API_URL = "https://api.themoviedb.org/3/discover/movie"
-    TMDB_API_KEY = settings.TMDB_API_KEY  # Use key from settings.py
+    TMDB_DISCOVER_URL = "https://api.themoviedb.org/3/discover/movie"
+    TMDB_MOVIE_URL = "https://api.themoviedb.org/3/movie"
+    TMDB_API_KEY = getattr(settings, "TMDB_API_KEY", None)
 
     def get(self, request, format=None):
+        if not self.TMDB_API_KEY:
+            return Response({"detail": "TMDB API key not configured."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         genre_filter = request.query_params.get('genre', None)
 
-        # 1️⃣ Try local database first
-        if genre_filter:
-            local_movies = Movie.objects.filter(genre__icontains=genre_filter)
-        else:
-            local_movies = Movie.objects.all()
-
-        if local_movies.exists():
-            movie = random.choice(list(local_movies))
-            data = {
-                "id": movie.id,
-                "title": movie.title,
-                "description": movie.description,
-                "genre": movie.genre,
-                "release_year": movie.release_year
-            }
-            return Response(data, status=status.HTTP_200_OK)
-
-        # 2️⃣ If local DB is empty or no matching genre, fetch from TMDb
         params = {
             "api_key": self.TMDB_API_KEY,
             "language": "en-US",
@@ -96,28 +83,56 @@ class RandomMovieView(APIView):
         }
 
         if genre_filter:
-            # TMDb uses numeric genre IDs; map genre names to IDs
             genre_id = self.get_tmdb_genre_id(genre_filter)
             if genre_id:
                 params["with_genres"] = genre_id
+            # if no genre_id found we still call TMDb but results may be broader
 
-        response = requests.get(self.TMDB_API_URL, params=params)
-        if response.status_code != 200:
+        # fetch first page of discover results, if many pages we might choose random page
+        r = requests.get(self.TMDB_DISCOVER_URL, params=params, timeout=10)
+        if r.status_code != 200:
             return Response({"detail": "TMDb API error."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        results = response.json().get("results", [])
+        data = r.json()
+        results = data.get("results", [])
+        total_pages = data.get("total_pages", 1)
+
         if not results:
             return Response({"detail": "No movies found from TMDb for this filter."}, status=status.HTTP_404_NOT_FOUND)
 
+        # choose a random page to get better variety if many pages
+        if total_pages > 1:
+            try:
+                page = random.randint(1, min(total_pages, 20))  # limit to first 20 pages to avoid huge offsets
+                params["page"] = page
+                r = requests.get(self.TMDB_DISCOVER_URL, params=params, timeout=10)
+                results = r.json().get("results", []) or results
+            except Exception:
+                pass
+
         movie = random.choice(results)
-        data = {
-            "id": movie.get("id"),
-            "title": movie.get("title"),
-            "description": movie.get("overview"),
-            "genre": ", ".join([str(g) for g in movie.get("genre_ids", [])]),
-            "release_year": movie.get("release_date", "")[:4]
+
+        # Optionally fetch full movie details
+        movie_id = movie.get("id")
+        try:
+            details = requests.get(f"{self.TMDB_MOVIE_URL}/{movie_id}", params={"api_key": self.TMDB_API_KEY}, timeout=10)
+            if details.status_code == 200:
+                movie_details = details.json()
+            else:
+                movie_details = movie
+        except Exception:
+            movie_details = movie
+
+        response_data = {
+            "id": movie_details.get("id"),
+            "title": movie_details.get("title") or movie_details.get("name"),
+            "overview": movie_details.get("overview"),
+            "genres": [g.get("name") for g in movie_details.get("genres", [])] if isinstance(movie_details.get("genres"), list) else movie_details.get("genre_ids", []),
+            "release_date": movie_details.get("release_date") or movie_details.get("first_air_date"),
+            "tmdb_url": f"https://www.themoviedb.org/movie/{movie_details.get('id')}" if movie_details.get('id') else None
         }
-        return Response(data, status=status.HTTP_200_OK)
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     def get_tmdb_genre_id(self, genre_name):
         """Map common genre names to TMDb genre IDs"""
@@ -137,6 +152,7 @@ class RandomMovieView(APIView):
             "mystery": 9648,
             "romance": 10749,
             "science fiction": 878,
+            "sci-fi": 878,
             "thriller": 53,
             "war": 10752,
             "western": 37
@@ -158,4 +174,12 @@ class ApiRootView(APIView):
             "users": reverse('user-list-create', request=request, format=format),
             "reviews": reverse('review-list-create', request=request, format=format),
             "random_movie": reverse('random-movie', request=request, format=format),
+            "app_frontend": reverse('app-frontend', request=request, format=format),
         })
+
+# -------------------------------
+# Tiny frontend (template) to demo flows
+# -------------------------------
+
+class AppFrontendView(TemplateView):
+    template_name = "reviews/frontend.html"
