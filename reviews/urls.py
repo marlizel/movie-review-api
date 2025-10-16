@@ -6,7 +6,6 @@ from .views import (
     ReviewDetailView,
     RandomMovieView,
     ApiRootView,
-    AppFrontendView,
 )
 
 urlpatterns = [
@@ -23,7 +22,4 @@ urlpatterns = [
 
     # Random movie endpoint (TMDb)
     path('movies/random/', RandomMovieView.as_view(), name='random-movie'),
-
-    # Tiny frontend for manual demo (optional)
-    path('app/', AppFrontendView.as_view(), name='app-frontend'),
 ]

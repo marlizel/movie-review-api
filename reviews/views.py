@@ -5,10 +5,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
-from .models import Review, Movie
+from .models import Review
 from .serializers import ReviewSerializer, UserSerializer
 from django.conf import settings
-from django.views.generic import TemplateView
 
 # -------------------------------
 # User Views
@@ -34,7 +33,6 @@ class ReviewListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def perform_create(self, serializer):
-        # automatically link review to logged-in user
         serializer.save(user=self.request.user)
 
 class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -43,19 +41,17 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def perform_update(self, serializer):
-        # ensure only review owner can update
         if self.get_object().user != self.request.user:
             raise permissions.PermissionDenied("You can only edit your own reviews.")
         serializer.save()
 
     def perform_destroy(self, instance):
-        # ensure only review owner can delete
         if instance.user != self.request.user:
             raise permissions.PermissionDenied("You can only delete your own reviews.")
         instance.delete()
 
 # -------------------------------
-# Random Movie View with TMDb (TMDb-only now)
+# Random Movie View with TMDb
 # -------------------------------
 
 class RandomMovieView(APIView):
@@ -72,7 +68,6 @@ class RandomMovieView(APIView):
             return Response({"detail": "TMDB API key not configured."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         genre_filter = request.query_params.get('genre', None)
-
         params = {
             "api_key": self.TMDB_API_KEY,
             "language": "en-US",
@@ -86,9 +81,7 @@ class RandomMovieView(APIView):
             genre_id = self.get_tmdb_genre_id(genre_filter)
             if genre_id:
                 params["with_genres"] = genre_id
-            # if no genre_id found we still call TMDb but results may be broader
 
-        # fetch first page of discover results, if many pages we might choose random page
         r = requests.get(self.TMDB_DISCOVER_URL, params=params, timeout=10)
         if r.status_code != 200:
             return Response({"detail": "TMDb API error."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -100,10 +93,9 @@ class RandomMovieView(APIView):
         if not results:
             return Response({"detail": "No movies found from TMDb for this filter."}, status=status.HTTP_404_NOT_FOUND)
 
-        # choose a random page to get better variety if many pages
         if total_pages > 1:
             try:
-                page = random.randint(1, min(total_pages, 20))  # limit to first 20 pages to avoid huge offsets
+                page = random.randint(1, min(total_pages, 20))
                 params["page"] = page
                 r = requests.get(self.TMDB_DISCOVER_URL, params=params, timeout=10)
                 results = r.json().get("results", []) or results
@@ -111,15 +103,11 @@ class RandomMovieView(APIView):
                 pass
 
         movie = random.choice(results)
-
-        # Optionally fetch full movie details
         movie_id = movie.get("id")
+
         try:
             details = requests.get(f"{self.TMDB_MOVIE_URL}/{movie_id}", params={"api_key": self.TMDB_API_KEY}, timeout=10)
-            if details.status_code == 200:
-                movie_details = details.json()
-            else:
-                movie_details = movie
+            movie_details = details.json() if details.status_code == 200 else movie
         except Exception:
             movie_details = movie
 
@@ -135,27 +123,12 @@ class RandomMovieView(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
     def get_tmdb_genre_id(self, genre_name):
-        """Map common genre names to TMDb genre IDs"""
         mapping = {
-            "action": 28,
-            "adventure": 12,
-            "animation": 16,
-            "comedy": 35,
-            "crime": 80,
-            "documentary": 99,
-            "drama": 18,
-            "family": 10751,
-            "fantasy": 14,
-            "history": 36,
-            "horror": 27,
-            "music": 10402,
-            "mystery": 9648,
-            "romance": 10749,
-            "science fiction": 878,
-            "sci-fi": 878,
-            "thriller": 53,
-            "war": 10752,
-            "western": 37
+            "action": 28, "adventure": 12, "animation": 16, "comedy": 35,
+            "crime": 80, "documentary": 99, "drama": 18, "family": 10751,
+            "fantasy": 14, "history": 36, "horror": 27, "music": 10402,
+            "mystery": 9648, "romance": 10749, "science fiction": 878,
+            "sci-fi": 878, "thriller": 53, "war": 10752, "western": 37
         }
         return mapping.get(genre_name.lower())
 
@@ -164,9 +137,6 @@ class RandomMovieView(APIView):
 # -------------------------------
 
 class ApiRootView(APIView):
-    """
-    API root endpoint that lists all main endpoints.
-    """
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, format=None):
@@ -174,12 +144,4 @@ class ApiRootView(APIView):
             "users": reverse('user-list-create', request=request, format=format),
             "reviews": reverse('review-list-create', request=request, format=format),
             "random_movie": reverse('random-movie', request=request, format=format),
-            "app_frontend": reverse('app-frontend', request=request, format=format),
         })
-
-# -------------------------------
-# Tiny frontend (template) to demo flows
-# -------------------------------
-
-class AppFrontendView(TemplateView):
-    template_name = "reviews/frontend.html"
